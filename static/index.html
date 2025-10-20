@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sesli AI Chatbot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            width: 100%;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .chat-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f5f5f5;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.bot .message-content {
+            background: white;
+            color: #333;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .audio-controls {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .play-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .play-btn:hover {
+            background: #764ba2;
+            transform: scale(1.05);
+        }
+
+        .play-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        #userInput {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        #userInput:focus {
+            border-color: #667eea;
+        }
+
+        #sendBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        #sendBtn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #sendBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            background: #fff3cd;
+            color: #856404;
+            font-size: 12px;
+            border-bottom: 1px solid #ffeeba;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎤 Sesli AI Chatbot</h1>
+            <p>Sorularınızı yazın, sesli yanıt alın!</p>
+        </div>
+
+        <div id="status" class="status hidden"></div>
+
+        <div class="chat-area" id="chatArea">
+            <div class="message bot">
+                <div class="message-content">
+                    Merhaba! 👋 Ben sesli AI asistanınızım. Size nasıl yardımcı olabilirim?
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="userInput" 
+                    placeholder="Mesajınızı yazın..." 
+                    autocomplete="off"
+                >
+                <button id="sendBtn">Gönder</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatArea = document.getElementById('chatArea');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const statusDiv = document.getElementById('status');
+
+        let isProcessing = false;
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message || isProcessing) return;
+
+            addMessage(message, 'user');
+            userInput.value = '';
+            isProcessing = true;
+            updateUI();
+
+            try {
+                showStatus('Yanıt bekleniyor...', '');
+
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const messageId = addMessage(data.text, 'bot');
+                    
+                    if (data.audio) {
+                        addAudioToMessage(messageId, data.audio);
+                    }
+
+                    showStatus('Yanıt alındı! 🎉', 'success');
+                } else {
+                    throw new Error(data.error || 'Bilinmeyen hata');
+                }
+
+            } catch (error) {
+                console.error('Hata:', error);
+                addMessage('Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin. 😔', 'bot');
+                showStatus('Hata: ' + error.message, 'error');
+            } finally {
+                isProcessing = false;
+                updateUI();
+            }
+        }
+
+        function addMessage(text, type) {
+            const messageId = 'msg-' + Date.now();
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.id = messageId;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = text;
+            
+            messageDiv.appendChild(contentDiv);
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+            
+            return messageId;
+        }
+
+        function addAudioToMessage(messageId, audioData) {
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+            
+            const contentDiv = messageDiv.querySelector('.message-content');
+            const audioControls = document.createElement('div');
+            audioControls.className = 'audio-controls';
+            
+            const playBtn = document.createElement('button');
+            playBtn.className = 'play-btn';
+            playBtn.textContent = '▶ Sesli Dinle';
+            playBtn.onclick = () => playAudio(audioData, playBtn);
+            
+            audioControls.appendChild(playBtn);
+            contentDiv.appendChild(audioControls);
+        }
+
+        function playAudio(audioData, button) {
+            const audio = new Audio(audioData);
+            button.textContent = '⏸ Çalıyor...';
+            button.disabled = true;
+            
+            audio.play();
+            
+            audio.onended = () => {
+                button.textContent = '▶ Sesli Dinle';
+                button.disabled = false;
+            };
+            
+            audio.onerror = () => {
+                button.textContent = '❌ Hata';
+                showStatus('Ses çalınamadı', 'error');
+            };
+        }
+
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+            statusDiv.classList.remove('hidden');
+            
+            if (type === 'success' || type === 'error') {
+                setTimeout(() => {
+                    statusDiv.classList.add('hidden');
+                }, 3000);
+            }
+        }
+
+        function updateUI() {
+            sendBtn.disabled = isProcessing;
+            userInput.disabled = isProcessing;
+            sendBtn.textContent = isProcessing ? 'Gönderiliyor...' : 'Gönder';
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        window.addEventListener('load', () => {
+            userInput.focus();
+        });
+    </script>
+</body>
+</html>
